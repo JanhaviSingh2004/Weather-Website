@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SkySpot Odyssey</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: url('images/bg.jpg') no-repeat center/cover;
+      color: white;
+      padding: 40px 15px;
+      transition: background-image 1s ease-in-out;
+    }
+
+    .weather-container {
+      max-width: 600px;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      padding: 30px 20px;
+      border-radius: 20px;
+      margin: auto;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    h2 {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+
+    #location {
+      font-size: 1.5rem;
+      margin: 10px 0;
+      word-break: break-word;
+    }
+
+    h1 {
+      font-size: 3rem;
+      margin: 10px 0;
+    }
+
+    .weather-details {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .detail-box {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      flex: 1 1 40%;
+      min-width: 120px;
+    }
+
+    input, button {
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+    }
+
+    input {
+      width: 70%;
+    }
+
+    button {
+      background-color: #00aaff;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #008dd0;
+    }
+
+    canvas {
+      margin-top: 20px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+    }
+
+    .error {
+      color: #ff5555;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 480px) {
+      input {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="weather-container">
+    <h2>SkySpot Odyssey</h2>
+    <input type="text" id="cityInput" placeholder="Enter city name">
+    <button onclick="getWeatherByCity()">Search</button>
+    <h3 id="location">Fetching location...</h3>
+    <h1 id="temperature">--°C</h1>
+    <p id="condition">--</p>
+
+    <div class="weather-details">
+      <div class="detail-box"><h3>Feels Like</h3><p id="feels-like">--°C</p></div>
+      <div class="detail-box"><h3>Humidity</h3><p id="humidity">--%</p></div>
+      <div class="detail-box"><h3>Wind</h3><p id="wind">-- km/h</p></div>
+      <div class="detail-box"><h3>Precipitation</h3><p id="precip">-- mm</p></div>
+      <div class="detail-box"><h3>Visibility</h3><p id="visibility">-- km</p></div>
+      <div class="detail-box"><h3>UV Index</h3><p id="uv">--</p></div>
+    </div>
+
+    <div id="error" class="error"></div>
+    <h3 style="margin-top: 20px;">5-Day Forecast</h3>
+    <canvas id="forecastChart"></canvas>
+  </div>
+
+  <script>
+    const apiKey = "30e42fd27464024a1c78c545b41c1ace";
+    const errorBox = document.getElementById("error");
+
+    function updateBackground(condition) {
+      let imageUrl = "images/bg.jpg";
+      condition = condition.toLowerCase();
+
+      if (condition.includes("rain")) imageUrl = "images/rain.gif";
+      else if (condition.includes("snow")) imageUrl = "images/snow.gif";
+      else if (condition.includes("clear")) imageUrl = "images/sunny.gif";
+      else if (condition.includes("cloud")) imageUrl = "images/cloudy.gif";
+
+      document.body.style.backgroundImage = url('${imageUrl}');
+    }
+
+    function fetchWeather(lat, lon) {
+      errorBox.innerText = "";
+
+      const currentURL = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+      const forecastURL = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+
+      fetch(currentURL)
+        .then(res => res.json())
+        .then(data => {
+          const { temp, feels_like, humidity } = data.main;
+          const wind = data.wind.speed;
+          const visibility = (data.visibility / 1000).toFixed(1);
+          const condition = data.weather[0].main;
+          const description = data.weather[0].description;
+          const precip = data.rain ? `${data.rain["1h"] || 0} mm` : "0 mm";
+          const uv = "--"; // OpenWeather free API does not include UV in /weather
+
+          document.getElementById("location").innerText = data.name;
+          document.getElementById("temperature").innerText = `${Math.round(temp)}°C`;
+          document.getElementById("feels-like").innerText = `${Math.round(feels_like)}°C`;
+          document.getElementById("humidity").innerText =` ${humidity}%`;
+          document.getElementById("wind").innerText = `${wind} km/h`;
+          document.getElementById("visibility").innerText = `${visibility} km`;
+          document.getElementById("precip").innerText = precip;
+          document.getElementById("uv").innerText = uv;
+          document.getElementById("condition").innerText = description;
+
+          updateBackground(condition);
+        });
+
+      fetch(forecastURL)
+        .then(res => res.json())
+        .then(data => {
+          const temps = {};
+          const labels = [];
+
+          data.list.forEach(item => {
+            const date = new Date(item.dt_txt);
+            const day = date.toLocaleDateString(undefined, { weekday: 'short' });
+            if (!temps[day]) temps[day] = [];
+            temps[day].push(item.main.temp);
+          });
+
+          for (let day in temps) {
+            const avg = temps[day].reduce((a, b) => a + b, 0) / temps[day].length;
+            labels.push(day);
+            temps[day] = parseFloat(avg.toFixed(1));
+          }
+
+          drawForecastGraph(labels.slice(0, 5), Object.values(temps).slice(0, 5));
+        });
+    }
+
+    function getWeatherByCity() {
+      const city = document.getElementById("cityInput").value.trim();
+      errorBox.innerText = "";
+
+      if (!city || !/^[a-zA-Z\s]+$/.test(city)) {
+        errorBox.innerText = "Please enter a valid city name.";
+        return;
+      }
+
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          if (data.cod !== 200) {
+            errorBox.innerText = "City not found. Try again.";
+            return;
+          }
+          fetchWeather(data.coord.lat, data.coord.lon);
+        })
+        .catch(() => {
+          errorBox.innerText = "Error fetching data. Try again.";
+        });
+    }
+
+    function drawForecastGraph(labels, data) {
+      const ctx = document.getElementById("forecastChart").getContext("2d");
+      if (window.myChart) window.myChart.destroy();
+
+      window.myChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Avg Temp (°C)",
+            data: data,
+            borderColor: "white",
+            backgroundColor: "rgba(255,255,255,0.2)",
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          scales: {
+            x: { ticks: { color: "white" } },
+            y: { ticks: { color: "white" } }
+          },
+          plugins: {
+            legend: { labels: { color: "white" } }
+          }
+        }
+      });
+    }
+
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          fetchWeather(pos.coords.latitude, pos.coords.longitude);
+        }, () => {
+          errorBox.innerText = "Location access denied. Please search by city.";
+        });
+      } else {
+        errorBox.innerText = "Geolocation not supported.";
+      }
+    }
+
+    getLocation();
+  </script>
+</body>
+</html>
